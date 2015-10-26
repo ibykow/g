@@ -32,7 +32,7 @@
 #define MIN_R 3
 #define MAX_R 8
 #define MIN_V 10
-#define MAX_V 15
+#define MAX_V 20
 
 // #define ELASTIC_COLLISIONS
 
@@ -158,29 +158,22 @@ static void particle_update_forces(struct particle_s *a, struct particle_s *b)
 
 static void particle_collide(struct particle_s *a, struct particle_s *b)
 {
+    float m = a->m + b->m;
+
     #ifdef ELASTIC_COLLISIONS
-    float   m = a->m + b->m,
-            d = a->m - b->m,
+    float   d = a->m - b->m,
             avx = d * a->vx / m + b->m * b->m * b->vx / m,
             bvx = a->m * a->m * a->vx / m - d * b->vx / m,
             avy = d * a->vy / m + b->m * b->m * b->vy / m,
             bvy = a->m * a->m * a->vy / m - d * b->vy / m;
 
-    if (!a->g->split) {
-        a->vx = avx;
-        b->vx = bvx;
-        a->vy = avy;
-        b->vy = bvy;
-    }
+    a->vx = avx;
+    b->vx = bvx;
+    a->vy = avy;
+    b->vy = bvy;
     #else
-    if (a->g->split)
-        return;
-
-    float m = a->m + b->m;
-
     a->vx = b->vx = (a->m * a->vx + b->m * b->vx) / m;
     a->vy = b->vy = (a->m * a->vy + b->m * b->vy) / m;
-
     #endif
 }
 
@@ -195,23 +188,19 @@ static void particle_update_pos(struct particle_s *a)
     a->y += a->vy;
 
     if (a->x < 0) {
-        a->x = a->g->w + a->x;
-        a->vx *= THRESHOLD_FACTOR / a->vx;
-    }
-
-    if (a->x > a->g->w) {
+        a->x = a->g->w - 100;
+        a->vx /= THRESHOLD_FACTOR;
+    } else if (a->x > a->g->w) {
         a->x = (float) ((int) a->x % (int) a->g->w);
-        a->vx *= THRESHOLD_FACTOR / a->vx;
+        a->vx /= THRESHOLD_FACTOR;
     }
 
     if (a->y < 0) {
         a->y = a->g->h + a->y;
-        a->vy *= THRESHOLD_FACTOR / a->vy;
-    }
-
-    if (a->y > a->g->h) {
+        a->vy /= THRESHOLD_FACTOR;
+    } else if ((a->y > a->g->h)) {
         a->y = (float) ((int) a->y % (int) a->g->h);
-        a->vy *= THRESHOLD_FACTOR / a->vy;
+        a->vy /= THRESHOLD_FACTOR;
     }
 
 }
@@ -225,8 +214,10 @@ static void game_update(struct game_s *g)
             particle_update_forces(g->particles + i, g->particles + j);
 
     INFO("%lu collisions detected", g->num_collided);
-    for (i = 0; i < g->num_collided; i++)
-        particle_collide(g->collided[i][0], g->collided[i][1]);
+    if (!g->split)
+        for (i = 0; i < g->num_collided; i++)
+            particle_collide(g->collided[i][0], g->collided[i][1]);
+
 
     g->num_collided = 0;
 
@@ -293,13 +284,13 @@ static void game_init_particles(struct game_s *g)
         .m = PRIMARY_MASS, .vx = 0, .vy = 0, .fx = 0, .fy = 0
     };
 
-    g->particles[1] = (struct particle_s) {
-        .g = g, .c = { .r = 0.0, .g = 0.0, .b = 1.0 },
-        .x = g->w - 50, .y = 50 , .r = 4,
-        .m = SECONDARY_MASS, .vx = 200, .vy = 0, .fx = 0, .fy = 0
-    };
+    // g->particles[1] = (struct particle_s) {
+    //     .g = g, .c = { .r = 0.0, .g = 0.0, .b = 1.0 },
+    //     .x = g->w - 50, .y = 50 , .r = 4,
+    //     .m = SECONDARY_MASS, .vx = 200, .vy = 0, .fx = 0, .fy = 0
+    // };
 
-    for (i = 2; i < NUM_PARTICLES; i++)
+    for (i = 1; i < NUM_PARTICLES; i++)
         particle_init_rnd(g->particles + i, g);
 
     g->num_collided = 0;
