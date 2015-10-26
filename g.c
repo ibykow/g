@@ -34,13 +34,15 @@
 #define MIN_V 10
 #define MAX_V 15
 
+// #define ELASTIC_COLLISIONS
+
 #ifndef PI
 #define PI 3.141592654
 #endif
 #define PI2 (PI*2)
 #define NUM_SIN_ANGLES 6000
 
-#define CIRCLE_TRIG_COUNT 15
+#define CIRCLE_TRIG_COUNT 20
 
 struct color_s {
     float r, g, b;
@@ -81,7 +83,7 @@ static void maru(GLfloat x, GLfloat y, GLfloat radius)
 	glBegin(GL_TRIANGLE_FAN);
 	glVertex2f(x, y); // center of circle
 
-	for(i = 0; i < CIRCLE_TRIG_COUNT; i++)
+	for(i = 0; i <= CIRCLE_TRIG_COUNT; i++)
 		glVertex2f(x + (radius * _cos(i * NUM_SIN_ANGLES / CIRCLE_TRIG_COUNT)),
             y + (radius * _sin(i * NUM_SIN_ANGLES / CIRCLE_TRIG_COUNT)));
 
