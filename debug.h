@@ -99,3 +99,5 @@ static ssize_t test_total = 0, test_failed = 0;
 
 #pragma clang diagnostic pop
 #pragma clang diagnostic pop
+
+#define clear_screen() printf("\e[1;1H\e[2J")

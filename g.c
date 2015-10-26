@@ -41,8 +41,21 @@
 #endif
 #define PI2 (PI*2)
 #define NUM_SIN_ANGLES 6000
-
 #define CIRCLE_TRIG_COUNT 20
+
+#define TEXT_BUF_SIZE 256
+
+#define DIRECTIONS 4
+
+enum keys_e {
+    KEY_UP,
+    KEY_DOWN,
+    KEY_LEFT,
+    KEY_RIGHT
+};
+
+static const char direction_key_chars[DIRECTIONS] = "wsad";
+static int direction_keys_pressed[DIRECTIONS] = {0, 0, 0, 0};
 
 struct color_s {
     float r, g, b;
@@ -65,6 +78,8 @@ struct game_s {
 }, *g = &game;
 
 static float sin_table[NUM_SIN_ANGLES];
+static int last_ch_code = 0;
+static int left_button_down = 0;
 
 static float _sin(float angle)
 {
@@ -88,6 +103,18 @@ static void maru(GLfloat x, GLfloat y, GLfloat radius)
             y + (radius * _sin(i * NUM_SIN_ANGLES / CIRCLE_TRIG_COUNT)));
 
 	glEnd();
+}
+
+void say(float x, float y, void *font, char *str, float r, float g, float b)
+{
+    glColor3f(r, g, b);
+
+    glRasterPos2f(x, y);
+
+    while (*str)
+        glutBitmapCharacter(font, *str++);
+
+
 }
 
 static int rand_int(int min, int max)
@@ -209,30 +236,53 @@ static void game_update(struct game_s *g)
 {
     size_t i, j;
 
+    g->num_collided = 0;
+
     for (i = 0; i < NUM_PARTICLES; i++)
         for (j = i + 1; j < NUM_PARTICLES; j++)
             particle_update_forces(g->particles + i, g->particles + j);
 
-    INFO("%lu collisions detected", g->num_collided);
     if (!g->split)
         for (i = 0; i < g->num_collided; i++)
             particle_collide(g->collided[i][0], g->collided[i][1]);
 
+    if (direction_keys_pressed[KEY_UP])
+        g->particles[0].vy += 0.1;
 
-    g->num_collided = 0;
+    if (direction_keys_pressed[KEY_DOWN])
+        g->particles[0].vy -= 0.1;
+
+    if (direction_keys_pressed[KEY_LEFT])
+        g->particles[0].vx -= 0.1;
+
+    if (direction_keys_pressed[KEY_RIGHT])
+        g->particles[0].vx += 0.1;
+
 
     for (i = 0; i < NUM_PARTICLES; i++)
         particle_update_pos(g->particles + i);
-
-    INFO("First particle x: %f, y: %f, vx: %f, vy: %f",
-        g->particles[0].x, g->particles[0].y, g->particles[0].vx,
-        g->particles[0].vy);
 }
 
 static void game_draw(struct game_s *g)
 {
     size_t i;
+    char text_buffer[TEXT_BUF_SIZE];
+
     glClear(GL_COLOR_BUFFER_BIT);
+
+    if (snprintf(text_buffer, TEXT_BUF_SIZE, "collisions: %lu",
+        g->num_collided) >= TEXT_BUF_SIZE)
+        text_buffer[TEXT_BUF_SIZE - 1] = '\0';
+
+    say(10, 25, GLUT_BITMAP_HELVETICA_12, text_buffer, 0.1, 1.0, 0.1);
+
+    if (snprintf(text_buffer, TEXT_BUF_SIZE, "x: %0.2f y: %0.2f",
+        g->particles[0].x, g->particles[0].y) >= TEXT_BUF_SIZE)
+        text_buffer[TEXT_BUF_SIZE - 1] = '\0';
+
+    say(10, 10, GLUT_BITMAP_HELVETICA_12, text_buffer, 0.1, 1.0, 0.1);
+
+    say(g->w - 100, 10, GLUT_BITMAP_HELVETICA_12, "Ilia Bykow, 2015", 1.0, 1.0, 1.0);
 
     for (i = 0; i < NUM_PARTICLES; i++)
         particle_draw(g->particles + i);
@@ -250,6 +300,8 @@ static void reshape_cb(int width, int height)
     glLoadIdentity();
     gluOrtho2D(-0.5, g->w + 0.5, -0.5, g->h + 0.5);
     glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
 }
 
 static void idle_cb(void)
@@ -335,8 +387,36 @@ static void init(int argc, char **argv)
     glDisable(GL_DITHER);
 }
 
+static void keyup_cb(unsigned char key, int x, int y)
+{
+    if (key == direction_key_chars[KEY_UP])
+        direction_keys_pressed[KEY_UP] = 0;
+
+    if (key == direction_key_chars[KEY_DOWN])
+        direction_keys_pressed[KEY_DOWN] = 0;
+
+    if (key == direction_key_chars[KEY_LEFT])
+        direction_keys_pressed[KEY_LEFT] = 0;
+
+    if (key == direction_key_chars[KEY_RIGHT])
+        direction_keys_pressed[KEY_RIGHT] = 0;
+
+}
+
 static void keybrd_cb(unsigned char key, int x, int y)
 {
+    if (key == direction_key_chars[KEY_UP])
+        direction_keys_pressed[KEY_UP] = 1;
+
+    if (key == direction_key_chars[KEY_DOWN])
+        direction_keys_pressed[KEY_DOWN] = 1;
+
+    if (key == direction_key_chars[KEY_LEFT])
+        direction_keys_pressed[KEY_LEFT] = 1;
+
+    if (key == direction_key_chars[KEY_RIGHT])
+        direction_keys_pressed[KEY_RIGHT] = 1;
+
     switch (key) {
     case 't':
         g->particles[0].m *= -1;
@@ -344,12 +424,34 @@ static void keybrd_cb(unsigned char key, int x, int y)
     case 'r':
         game_init_particles(g);
         break;
-    case 's':
+    case 'y':
         g->split ^= 1;
         break;
     case 27:
         INFO("Quitting")
         exit(0);
+    }
+
+    last_ch_code = (int) key;
+}
+
+static void mouse_move_cb(int x, int y)
+{
+    if (!left_button_down)
+        return;
+
+    g->particles[0].x = (float) x;
+    g->particles[0].y = (float) g->h - y;
+
+    g->particles[0].vx = 0;
+    g->particles[0].vy = 0;
+}
+
+static void mouse_click_cb(int b, int s, int x, int y)
+{
+    if (b == GLUT_LEFT_BUTTON) {
+        left_button_down = (s == GLUT_DOWN);
+        mouse_move_cb(x, y);
     }
 }
 
@@ -361,6 +463,9 @@ int main(int argc, char **argv)
     INFO("Setting callbacks");
     glutReshapeFunc(reshape_cb);
     glutKeyboardFunc(keybrd_cb);
+    glutKeyboardUpFunc(keyup_cb);
+    glutMouseFunc(mouse_click_cb);
+    glutMotionFunc(mouse_move_cb);
     glutVisibilityFunc(vis_cb);
     glutDisplayFunc(disp_cb);
 
